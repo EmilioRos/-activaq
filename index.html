@@ -2749,8 +2749,65 @@ window.openReport=function(){if(!lastD)return;
   const h=[...document.querySelectorAll("#sheet h3")].find(h=>/Actividades consultadas durante la sesión/.test(h.textContent));if(h)h.textContent=`Actividades del resultado (${nAct})`;
   const parts=[];if(filt!=="all")parts.push("Condición: "+LBL[filt]);
   if(mode==="ruc"){const q=$("act").value.trim(),sc=$("sector").value;if(q)parts.push(`Palabra clave: “${q}”`);if(sc)parts.push("Sector: "+SECT[sc])}
-  else if(Q.pages.length>1)parts.push(`Página ${Q.page+1} de ${Q.pages.length}`);
+  else{if(typeof SECF!=="undefined"&&SECF)parts.push("Sector: "+SECT[SECF]);if(Q.pages.length>1)parts.push(`Página ${Q.page+1} de ${Q.pages.length}`)}
   const meta=document.querySelector("#sheet .meta");if(meta){const d=document.createElement("div");d.innerHTML=`<small>Filtros aplicados</small>${esc(parts.join(" · ")||"Ninguno")}`;meta.append(d)}};
+
+/* ===================== v2026-11-04e: filtro "Sector económico (de los resultados)" ===================== */
+(()=>{const st=document.createElement("style");st.textContent=`
+#secResBox{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;margin:4px 0 12px}
+#secResBox label{margin:0}
+#secResBox select{width:auto;flex:0 1 560px;min-width:240px;max-width:100%}
+.secchips{display:none!important}`;document.head.append(st)})();
+var SECF="";
+const SBX=document.createElement("div");SBX.id="secResBox";SBX.hidden=true;
+SBX.innerHTML='<label class="f" for="secRes">Sector económico <em>(de los resultados)</em></label><select id="secRes"></select>';
+document.querySelector("#res .res-head").after(SBX);
+const SECT_OPTS=$("sector").innerHTML;
+function buildSecRes(){
+  if(mode==="ruc"){SBX.hidden=true;
+    const c={};Q.list.forEach(x=>{const k=x.n[0];c[k]=(c[k]||0)+1});const ks=Object.keys(c).sort();
+    $("sector").innerHTML='<option value="">Todos los sectores</option>'+ks.map(k=>`<option value="${k}">${esc(SECT[k]||k)}</option>`).join("");
+    $("secLbl").innerHTML='Sector económico <em>(de los resultados)</em>';return}
+  if($("sector").value){SBX.hidden=true;return}
+  const c={};Q.list.forEach(x=>c[x.sec]=(c[x.sec]||0)+1);const ks=Object.keys(c).sort();
+  if(ks.length<2){SBX.hidden=true;return}
+  $("secRes").innerHTML=`<option value="">Todos los sectores (${Q.list.length})</option>`+ks.map(k=>`<option value="${k}">${esc(SECT[k]||k)} (${c[k]})</option>`).join("");
+  $("secRes").value=SECF;SBX.hidden=false}
+$("secRes").addEventListener("change",()=>{SECF=$("secRes").value;const Lst=SECF?Q.list.filter(x=>x.sec===SECF):Q.list;Q.pages=paginate(Lst);Q.page=0;filt="all";open=null;loadVisible()});
+const _buscar7=window.buscar;
+window.buscar=function(){const before=lastD&&lastD.n;SECF="";_buscar7();if(lastD&&lastD.n!==before&&!$("res").hidden)buildSecRes()};
+const _setMode5=window.setMode;
+window.setMode=function(m){$("sector").innerHTML=SECT_OPTS;SBX.hidden=true;SECF="";_setMode5(m)};
+const _limpiar2=window.limpiar;window.limpiar=function(k){SBX.hidden=true;SECF="";if(mode==="ruc")$("sector").innerHTML=SECT_OPTS;_limpiar2(k)};
+
+/* ===================== v2026-11-04f: modalidad desactivada = visible pero deshabilitada con mensaje ===================== */
+(()=>{const st=document.createElement("style");st.textContent=`
+.ocard.off{opacity:.55;filter:grayscale(.6)}
+.ocard.off .offmsg{display:block;margin:6px 0 10px;font-size:13px;font-weight:600;color:var(--no)}
+.offmsg{display:none}`;document.head.append(st)})();
+const OFFMSG="Esta modalidad de consulta no se encuentra disponible temporalmente.";
+const _renderHome=window.renderHome;
+window.renderHome=function(){_renderHome();
+  const oc={ruc:".ocard.r",predio:".ocard.p",geo:".ocard.g"};
+  document.querySelectorAll(".path.a,.path.b,.paths .or").forEach(e=>e.hidden=false);
+  Object.entries(oc).forEach(([k,sel])=>{const e=document.querySelector(sel);if(!e)return;e.hidden=false;const off=!PARAMS.tipos[k];
+    e.classList.toggle("off",off);let m=e.querySelector(".offmsg");if(!m){m=document.createElement("p");m.className="offmsg";e.querySelector("button").before(m)}m.textContent=OFFMSG;
+    const b=e.querySelector("button");b.disabled=off;b.setAttribute("aria-disabled",off)});
+  document.querySelectorAll(".seg button").forEach(b=>{if(PARAMS.tipos[b.dataset.m]!==undefined)b.disabled=!PARAMS.tipos[b.dataset.m]})};
+const _goC=window.goConsulta;
+window.goConsulta=function(m){if(PARAMS.tipos&&PARAMS.tipos[m]===false){toast(OFFMSG);return}_goC(m)};
+const _secP2=window.secParametros;
+window.secParametros=function(){return _secP2().replace("Fase 2 · hoy se muestra como “Próximamente”","").replace("Las modalidades desactivadas dejarán de mostrarse al ciudadano en las opciones de consulta.","Las modalidades desactivadas se mostrarán deshabilitadas al ciudadano, con el mensaje “"+OFFMSG+"”")};
+const _saveTipos=window.saveTipos;
+if(_saveTipos)window.saveTipos=function(){const o=window.confirmDo;window.confirmDo=function(t,msgx,...r){return o(t,String(msgx).replace("Las modalidades desactivadas dejarán de mostrarse al ciudadano en las opciones de consulta.","Las modalidades desactivadas se mostrarán deshabilitadas al ciudadano, con el mensaje “"+OFFMSG+"”"),...r)};try{_saveTipos()}finally{window.confirmDo=o}};
+renderHome();
+
+/* ===================== v2026-11-04g: Reportes y Configuración solo con la dirección interna (#admin) ===================== */
+function applyAdminHash(first){const adm=/^#admin/i.test(location.hash);
+  document.querySelectorAll('nav button[data-v="rep"],nav button[data-v="cfg"]').forEach(b=>b.hidden=!adm);
+  if(adm&&(first||!A.user))goAdmin("resumen")}
+window.addEventListener("hashchange",()=>applyAdminHash(false));
+applyAdminHash(true);
 
 </script>
 </body>
