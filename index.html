@@ -2985,15 +2985,19 @@ async function downloadPDF(btn){
     const host=document.createElement("div");host.style.cssText="position:absolute;left:-10000px;top:0;width:794px;background:#fff";
     const sh=$("sheet").cloneNode(true);sh.removeAttribute("id");sh.style.maxWidth="794px";sh.style.margin="0";sh.style.borderRadius="0";host.append(sh);document.body.append(host);
     await new Promise(r=>setTimeout(r,60));const r0=sh.getBoundingClientRect();
+    const dEl=sh.querySelector(".disc"),dr=dEl?dEl.getBoundingClientRect():null,dTop=dr?dr.top-r0.top:0,dH=dr?dr.height:0,GAP=14;
+
     /* puntos de corte seguros: final de cada bloque o fila (no se corta una fila a la mitad) */
     const cuts=[...sh.querySelectorAll(".rh,.disc,.meta,h3,.mapbox,tr,.cimp li,.note,img")].map(e=>e.getBoundingClientRect().bottom-r0.top).concat([r0.height]).sort((a,b)=>a-b);
     let cv;try{cv=await html2canvas(sh,{scale:2,useCORS:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:1200})}finally{host.remove()}
     const {jsPDF}=window.jspdf,pdf=new jsPDF({unit:"mm",format:"a4"}),PW=210,PH=297,M=10,cw=PW-2*M,k=cv.width/r0.width,pageCss=(PH-2*M)*r0.width/cw;
+    /* aviso del alcance en la parte superior de cada hoja (desde la segunda hoja se repite) */
     let y=0,first=true;
-    while(y<r0.height-1){let end=Math.min(y+pageCss,r0.height);const ok=cuts.filter(c=>c>y+40&&c<=end);if(end<r0.height&&ok.length)end=ok[ok.length-1];
+    while(y<r0.height-1){const avail=first?pageCss:pageCss-dH-GAP;let end=Math.min(y+avail,r0.height);const ok=cuts.filter(c=>c>y+40&&c<=end);if(end<r0.height&&ok.length)end=ok[ok.length-1];
       const h=end-y,pc=document.createElement("canvas");pc.width=cv.width;pc.height=Math.ceil(h*k);
       pc.getContext("2d").drawImage(cv,0,Math.floor(y*k),cv.width,pc.height,0,0,cv.width,pc.height);
-      if(!first)pdf.addPage();first=false;pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",M,M,cw,h*cw/r0.width);y=end}
+      let top=M;if(!first){pdf.addPage();if(dH){const dc=document.createElement("canvas");dc.width=cv.width;dc.height=Math.ceil(dH*k);dc.getContext("2d").drawImage(cv,0,Math.floor(dTop*k),cv.width,dc.height,0,0,cv.width,dc.height);pdf.addImage(dc.toDataURL("image/jpeg",0.92),"JPEG",M,M,cw,dH*cw/r0.width);top=M+(dH+GAP)*cw/r0.width}}
+      first=false;pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",M,top,cw,h*cw/r0.width);y=end}
     const n=pdf.getNumberOfPages();for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFontSize(8);pdf.setTextColor(110);pdf.text(`Página ${i} de ${n}`,PW-M,PH-4,{align:"right"})}
     pdf.save(`MOD-LUAE_consulta_${(lastD&&lastD.n)||"resultado"}.pdf`);toast("PDF descargado")
   }catch(e){console.error(e);toast("No se pudo generar el archivo. Se abrirá la opción de imprimir del navegador; elige “Guardar como PDF”.");try{window.print()}catch(_){}}
