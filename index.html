@@ -2923,6 +2923,7 @@ const EXAMPLES=["tienda","restaurante","peluquería","mecánica","farmacia","pap
 window.tryWord=function(w){$("act").value=w;hideAS();buscar()};
 const _render8=window.render;
 window.render=function(){_render8();
+  {const t=$("tb").closest("table");if(t)t.style.minWidth="0"}
   if(mode==="ruc"||Q.list.length||$("res").hidden)return;
   const q=$("act").value.trim();
   if(q&&missSeq!==seq){missSeq=seq;const k=norm(q);MISS.set(k,(MISS.get(k)||0)+1)}
@@ -2936,6 +2937,7 @@ const _secP3=window.secParametros;
 window.secParametros=function(){let h=_secP3();
   const lst=[...MISS.entries()].sort((a,b)=>b[1]-a[1]);
   h=h.replace(/Palabras buscadas sin resultados en los últimos 30 días:[^<]*/,lst.length?"Palabras buscadas sin resultados (esta sesión de prueba): "+lst.map(([w,n])=>`“${esc(w)}” (${n})`).join(", ")+". Agrégalas como sinónimos para que el ciudadano encuentre su actividad.":"Palabras buscadas sin resultados: aún no hay registros en esta sesión de prueba. Aquí aparecerán las palabras que los ciudadanos escriban y no den resultados, para agregarlas como sinónimos.");
+  h=h.replace(/SIREC-Q \(fase 2\)/gi,"SIREC-Q / catastro").replace('<span class="na">Fase 2</span>','<span class="dot2"></span>Conectado').replace(/se muestran al ciudadano como “Actividad en proceso de equivalencia”/,"se muestran al ciudadano con el texto “Sin información disponible por el momento.”");
   return h.replace(/>(\d+) actividades<br><small>(\d+) filas por parámetro/,`>${CAT.length} actividades homologadas<br><small>${CROWS.length} filas por parámetro · tomadas de la matriz de equivalencia`)};
 
 /* 5) RUC: la descripción completa en “Ver detalle” */
@@ -2966,6 +2968,38 @@ window.openReport=function(){_openReport9();if(mode!=="ruc"||!lastD)return;
     e=>say(e.code===1?"No se pudo usar tu ubicación: el permiso fue denegado o esta vista no lo permite (en la vista previa de claude.ai está bloqueado; funciona en el enlace publicado). Escribe la dirección en el buscador.":"No se pudo obtener tu ubicación. Escribe la dirección en el buscador."),
     {enableHighAccuracy:true,timeout:10000,maximumAge:60000})});
 })();
+
+/* Registros de ejemplo: la consulta por ubicación geográfica ya está habilitada */
+RECORDS.forEach((x,i)=>{if(x.mod==="predio"&&i%3===0)x.mod="geo"});
+
+/* ===================== v2026-11-05: “Descargar PDF” genera el archivo PDF (sin diálogo de impresión) ===================== */
+const PDFLIB=["https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
+function loadJS(u){return new Promise((ok,ko)=>{if(document.querySelector(`script[src="${u}"]`)){ok();return}const s=document.createElement("script");s.src=u;s.onload=ok;s.onerror=ko;document.head.append(s)})}
+const inPreview=()=>{try{return window.self!==window.top}catch(e){return true}};
+async function downloadPDF(btn){
+  if(inPreview()){toast("En esta vista previa no se permiten descargas. Abre el enlace publicado del prototipo (GitHub) para descargar el PDF.");return}
+  const lbl=btn?btn.innerHTML:"";if(btn){btn.disabled=true;btn.textContent="Generando PDF…"}
+  try{
+    for(const u of PDFLIB)await loadJS(u);
+    /* copia fuera de la ventana emergente, a ancho fijo, para que lo medido coincida con lo dibujado */
+    const host=document.createElement("div");host.style.cssText="position:absolute;left:-10000px;top:0;width:794px;background:#fff";
+    const sh=$("sheet").cloneNode(true);sh.removeAttribute("id");sh.style.maxWidth="794px";sh.style.margin="0";sh.style.borderRadius="0";host.append(sh);document.body.append(host);
+    await new Promise(r=>setTimeout(r,60));const r0=sh.getBoundingClientRect();
+    /* puntos de corte seguros: final de cada bloque o fila (no se corta una fila a la mitad) */
+    const cuts=[...sh.querySelectorAll(".rh,.disc,.meta,h3,.mapbox,tr,.cimp li,.note,img")].map(e=>e.getBoundingClientRect().bottom-r0.top).concat([r0.height]).sort((a,b)=>a-b);
+    let cv;try{cv=await html2canvas(sh,{scale:2,useCORS:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:1200})}finally{host.remove()}
+    const {jsPDF}=window.jspdf,pdf=new jsPDF({unit:"mm",format:"a4"}),PW=210,PH=297,M=10,cw=PW-2*M,k=cv.width/r0.width,pageCss=(PH-2*M)*r0.width/cw;
+    let y=0,first=true;
+    while(y<r0.height-1){let end=Math.min(y+pageCss,r0.height);const ok=cuts.filter(c=>c>y+40&&c<=end);if(end<r0.height&&ok.length)end=ok[ok.length-1];
+      const h=end-y,pc=document.createElement("canvas");pc.width=cv.width;pc.height=Math.ceil(h*k);
+      pc.getContext("2d").drawImage(cv,0,Math.floor(y*k),cv.width,pc.height,0,0,cv.width,pc.height);
+      if(!first)pdf.addPage();first=false;pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",M,M,cw,h*cw/r0.width);y=end}
+    const n=pdf.getNumberOfPages();for(let i=1;i<=n;i++){pdf.setPage(i);pdf.setFontSize(8);pdf.setTextColor(110);pdf.text(`Página ${i} de ${n}`,PW-M,PH-4,{align:"right"})}
+    pdf.save(`MOD-LUAE_consulta_${(lastD&&lastD.n)||"resultado"}.pdf`);toast("PDF descargado")
+  }catch(e){console.error(e);toast("No se pudo generar el archivo. Se abrirá la opción de imprimir del navegador; elige “Guardar como PDF”.");try{window.print()}catch(_){}}
+  finally{if(btn){btn.disabled=false;btn.innerHTML=lbl}}
+}
+(()=>{const b=[...document.querySelectorAll("#rep button")].find(x=>/Imprimir/.test(x.textContent));if(b){b.textContent="Descargar PDF";b.removeAttribute("onclick");b.addEventListener("click",()=>downloadPDF(b))}})();
 
 </script>
 </body>
