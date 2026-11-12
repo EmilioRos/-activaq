@@ -3229,5 +3229,14 @@ window.buscar=function(){const r=_b.apply(this,arguments);const res=$("res");
 window.resetPwd=function(id){const u=USERS.find(x=>x.id===id);confirmDo("Restablecer contraseña",`Se generará una nueva contraseña de acceso para <b>${esc(u.nom)}</b> (${esc(u.user)}), que el Administrador entregará al usuario.`,"Restablecer",()=>{audit("Contraseña restablecida",u.user);toast("Contraseña restablecida")})};
 const _ufm=window.userForm;window.userForm=function(id){_ufm(id);if(!id){const g=document.querySelector('#mForm .mf-grid');if(g){const p=document.createElement('p');p.className='foot';p.textContent='Al guardar, el sistema generará la contraseña de acceso, que el Administrador entregará al usuario.';g.after(p)}}};
 </script>
+<script>
+/* v2026-11-12d: en la consulta por ubicación geográfica, al buscar se baja a los resultados */
+(function(){const _b=window.buscar;
+window.buscar=function(){const r=_b.apply(this,arguments);
+  if(typeof mode!=="undefined"&&mode==="geo"){const w=$("waitMsg"),res=$("res");
+    const tgt=(w&&!w.hidden)?w:(res&&!res.hidden?res:null);
+    if(tgt){const go=e=>{const y=e.getBoundingClientRect().top+scrollY-90;window.scrollTo({top:y,behavior:"smooth"})};requestAnimationFrame(()=>go(tgt));setTimeout(()=>{if(res&&!res.hidden)go(res)},1000)}}
+  return r}})();
+</script>
 </body>
 </html>
